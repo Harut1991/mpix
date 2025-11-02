@@ -259,11 +259,11 @@
         <h1>Pixel Market</h1>
         <div class="header-buttons">
             <a href="/admin" class="header-btn" style="text-decoration: none; display: inline-block; background: #444; color: #e0e0e0; margin-right: 10px;">Admin</a>
-            <button class="header-btn" id="startBtn">Test and Bring Your Place</button>
+            <button class="header-btn" id="startBtn">Select Area</button>
             <input type="file" id="imageInput" accept="image/*" style="display: none;">
             <button class="header-btn upload-btn" id="uploadBtn" style="display: none;">Upload Image</button>
-            <button class="header-btn" id="requestBtn" style="display: none; background: #00ff88; color: #1a1a1a;">Request to Make Place Yours</button>
-            <button class="header-btn" id="clearBtn" style="display: none; background: #ff6b6b; color: white;">Clear and Try Again</button>
+            <button class="header-btn" id="requestBtn" style="display: none; background: #00ff88; color: #1a1a1a;">Submit Request</button>
+            <button class="header-btn" id="clearBtn" style="display: none; background: #ff6b6b; color: white;">Clear Selection</button>
         </div>
     </div>
 
@@ -272,9 +272,9 @@
     </div>
 
     <div class="upload-section" id="requestModal">
-        <h2>Request to Make Place Yours</h2>
+        <h2>Submit Request</h2>
         <p style="color: #888; margin-bottom: 20px; font-size: 0.9em;">
-            Our admin will contact you within 12 hours. Please fill in your contact information.
+            Admin will contact you within 12 hours. Please provide your contact information.
         </p>
         <form id="requestForm">
             <div style="margin-bottom: 15px;">
@@ -294,8 +294,8 @@
                 <input type="text" id="requestTelegram" placeholder="@username" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #444; background: #1a1a1a; color: #e0e0e0;">
             </div>
             <div>
-                <button type="button" class="header-btn" onclick="sendRequest()" style="background: #00ff88; color: #1a1a1a; margin-right: 10px;">Send Request</button>
-                <button type="button" class="close-upload" onclick="closeRequestModal()">Close</button>
+                <button type="button" class="header-btn" onclick="sendRequest()" style="background: #00ff88; color: #1a1a1a; margin-right: 10px;">Submit</button>
+                <button type="button" class="close-upload" onclick="closeRequestModal()">Cancel</button>
             </div>
         </form>
     </div>
@@ -337,7 +337,7 @@
                     // First click - enter edit mode
                     selectionEnabled = true;
                     document.getElementById('startBtn').disabled = false;
-                    document.getElementById('startBtn').textContent = 'Exit Edit Mode';
+                    document.getElementById('startBtn').textContent = 'Exit Selection';
                     
                     // Update grid class
                     grid.classList.add('selection-enabled');
@@ -360,7 +360,7 @@
                     // Clear all selected cubes and go back to initial state
                     clearAllSelected();
                     selectionEnabled = false;
-                    document.getElementById('startBtn').textContent = 'Test and Bring Your Place';
+                    document.getElementById('startBtn').textContent = 'Select Area';
                     
                     // Update grid class
                     grid.classList.remove('selection-enabled');
