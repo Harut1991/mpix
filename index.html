@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Market - Buy Your Pixel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            min-height: 100vh;
+            padding: 10px;
+            color: #e0e0e0;
+        }
+
+        .header {
+            background: linear-gradient(90deg, #2d2d2d 0%, #1a1a1a 100%);
+            border-bottom: 2px solid #00ff88;
+            padding: 8px 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 8px rgba(0, 255, 136, 0.2);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.3em;
+            margin: 0;
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 600;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .header-btn {
+            background: #00ff88;
+            color: #1a1a1a;
+            border: none;
+            padding: 8px 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .header-btn:hover {
+            background: #00cc6a;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.4);
+        }
+
+        .header-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .upload-btn {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .upload-btn:hover {
+            background: #ff4444;
+        }
+
+        .upload-section {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #2d2d2d;
+            padding: 30px;
+            border-radius: 10px;
+            border: 2px solid #00ff88;
+            box-shadow: 0 10px 40px rgba(0, 255, 136, 0.3);
+            z-index: 1000;
+            text-align: center;
+        }
+
+        .upload-section h2 {
+            color: #00ff88;
+            margin-bottom: 20px;
+        }
+
+        .upload-section input[type="file"] {
+            margin: 15px 0;
+            color: #e0e0e0;
+        }
+
+        .upload-section button {
+            margin: 10px 5px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .close-upload {
+            background: #444;
+            color: #e0e0e0;
+        }
+
+        .container {
+            width: 98%;
+            height: calc(100vh - 120px);
+            margin: 0 auto;
+            background: #242424;
+            border: 2px solid #333;
+            padding: 15px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pixel-grid {
+            display: grid;
+            grid-template-columns: repeat(145, 10px);
+            grid-template-rows: repeat(56, 10px);
+            gap: 0;
+            width: fit-content;
+            height: fit-content;
+            border: 2px solid #00ff88;
+            background: #0a0a0a;
+            cursor: crosshair;
+            position: relative;
+            contain: layout style paint;
+            will-change: contents;
+        }
+
+        .pixel-grid:not(.selection-enabled) {
+            cursor: not-allowed;
+        }
+
+        .pixel-grid.selection-enabled:not(.has-selection) {
+            cursor: crosshair;
+        }
+
+        .pixel {
+            width: 10px;
+            height: 10px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            cursor: pointer;
+            position: relative;
+            contain: layout style paint;
+            transform: translateZ(0);
+            backface-visibility: hidden;
+            will-change: auto;
+            transition: none;
+        }
+        
+        .pixel:hover:not(.disabled):not(.owned) {
+            border-color: #00ff88;
+            box-shadow: 0 0 4px rgba(0, 255, 136, 0.4);
+        }
+
+        .pixel.disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .pixel.owned {
+            background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+            border: 1px solid #00cc6a;
+            box-shadow: 
+                0 3px 6px rgba(0, 0, 0, 0.4),
+                inset 0 -2px 0 rgba(0, 0, 0, 0.3),
+                inset 0 2px 0 rgba(255, 255, 255, 0.2),
+                inset -2px 0 0 rgba(0, 0, 0, 0.2),
+                inset 2px 0 0 rgba(255, 255, 255, 0.1);
+        }
+
+        .pixel.owned.has-image {
+            border: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+
+        .image-overlay {
+            position: absolute;
+            background-position: 0 0;
+            background-repeat: no-repeat;
+            pointer-events: none;
+            z-index: 100;
+            border: none;
+            image-rendering: auto;
+            will-change: transform;
+        }
+
+        .image-overlay.clickable {
+            pointer-events: auto;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .image-overlay.clickable:hover {
+            opacity: 0.9;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: #00ff88;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            white-space: nowrap;
+            max-width: 300px;
+            white-space: normal;
+            word-wrap: break-word;
+            border: 1px solid #00ff88;
+            box-shadow: 0 2px 8px rgba(0, 255, 136, 0.3);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .tooltip.visible {
+            opacity: 1;
+        }
+
+        .selection-overlay {
+            position: absolute;
+            border: 2px dashed #00ff88;
+            background: rgba(0, 255, 136, 0.2);
+            pointer-events: none;
+            z-index: 50;
+            will-change: transform;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Pixel Market</h1>
+        <div class="header-buttons">
+            <a href="/admin" class="header-btn" style="text-decoration: none; display: inline-block; background: #444; color: #e0e0e0; margin-right: 10px;">Admin</a>
+            <button class="header-btn" id="startBtn">Test and Bring Your Place</button>
+            <input type="file" id="imageInput" accept="image/*" style="display: none;">
+            <button class="header-btn upload-btn" id="uploadBtn" style="display: none;">Upload Image</button>
+            <button class="header-btn" id="requestBtn" style="display: none; background: #00ff88; color: #1a1a1a;">Request to Make Place Yours</button>
+            <button class="header-btn" id="clearBtn" style="display: none; background: #ff6b6b; color: white;">Clear and Try Again</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="pixel-grid" id="pixelGrid"></div>
+    </div>
+
+    <div class="upload-section" id="requestModal">
+        <h2>Request to Make Place Yours</h2>
+        <p style="color: #888; margin-bottom: 20px; font-size: 0.9em;">
+            Our admin will contact you within 12 hours. Please fill in your contact information.
+        </p>
+        <form id="requestForm">
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; color: #e0e0e0;">Link:</label>
+                <input type="url" id="requestLink" placeholder="https://example.com" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #444; background: #1a1a1a; color: #e0e0e0;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; color: #e0e0e0;">Text:</label>
+                <textarea id="requestText" placeholder="Your message..." rows="4" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #444; background: #1a1a1a; color: #e0e0e0; resize: vertical;"></textarea>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; color: #e0e0e0;">Email:</label>
+                <input type="email" id="requestEmail" placeholder="your@email.com" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #444; background: #1a1a1a; color: #e0e0e0;">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 5px; color: #e0e0e0;">Telegram:</label>
+                <input type="text" id="requestTelegram" placeholder="@username" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #444; background: #1a1a1a; color: #e0e0e0;">
+            </div>
+            <div>
+                <button type="button" class="header-btn" onclick="sendRequest()" style="background: #00ff88; color: #1a1a1a; margin-right: 10px;">Send Request</button>
+                <button type="button" class="close-upload" onclick="closeRequestModal()">Close</button>
+            </div>
+        </form>
+    </div>
+
+
+    <script>
+        const gridWidth = 145;
+        const gridHeight = 56;
+        const gridSize = gridWidth * gridHeight; // Total pixels = 4160
+        const pixels = {}; // All filled pixels (including loaded from backend)
+        const pixelImages = {}; // Store image data for each pixel area
+        let loadedPixels = new Set(); // Track pixels that were loaded from backend (should not be cleared/modified by new selections)
+        let selectionEnabled = false; // Selection is disabled until button is clicked
+        let selectedCount = 0; // Count of selected pixels
+        let uploadedImageData = null; // Store uploaded image data
+        let isSelecting = false; // Whether user is selecting area
+        let selectionStart = null; // Starting pixel of selection
+        let selectionEnd = null; // Ending pixel of selection
+        let hasDragged = false; // Track if user actually dragged
+        let hasSelectedBlock = false; // Track if a block has been selected/filled
+        let lastFilledPixels = []; // Store last filled pixels for clearing
+        
+        // DOM variables
+        let grid = null;
+        let pixelImageCache = new Map(); // Cache which pixels have images
+        let selectionOverlay = null; // Selection overlay element
+        let updateBatch = []; // Batch DOM updates
+        let rafPending = false;
+        let tooltip = null; // Tooltip element
+        let tooltipTimeout = null; // Tooltip show/hide timeout
+        
+        // Wait for DOM to be fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeGrid();
+            
+            // Enable selection and update button
+            document.getElementById('startBtn').addEventListener('click', () => {
+                if (!selectionEnabled) {
+                    // First click - enter edit mode
+                    selectionEnabled = true;
+                    document.getElementById('startBtn').disabled = false;
+                    document.getElementById('startBtn').textContent = 'Exit Edit Mode';
+                    
+                    // Update grid class
+                    grid.classList.add('selection-enabled');
+                    grid.classList.remove('has-selection');
+                    
+                    // Remove disabled class from all pixels
+                    batchUpdate(() => {
+                        grid.querySelectorAll('.pixel').forEach(pixel => {
+                            pixel.classList.remove('disabled');
+                        });
+                    });
+                    
+                    // Update overlay clickability (disable in edit mode)
+                    updateAllOverlaysClickability();
+                    
+                    // Show upload button
+                    showUploadButton();
+                } else {
+                    // Clicked in edit mode - exit edit mode
+                    // Clear all selected cubes and go back to initial state
+                    clearAllSelected();
+                    selectionEnabled = false;
+                    document.getElementById('startBtn').textContent = 'Test and Bring Your Place';
+                    
+                    // Update grid class
+                    grid.classList.remove('selection-enabled');
+                    
+                    // Hide upload button when exiting edit mode
+                    document.getElementById('uploadBtn').style.display = 'none';
+                    
+                    // Hide clear button
+                    document.getElementById('clearBtn').style.display = 'none';
+                    
+                    // Reset selection state
+                    hasSelectedBlock = false;
+                    lastFilledPixels = [];
+                    isSelecting = false;
+                    selectionStart = null;
+                    selectionEnd = null;
+                    
+                    // Add disabled class back
+                    batchUpdate(() => {
+                        grid.querySelectorAll('.pixel').forEach(pixel => {
+                            pixel.classList.add('disabled');
+                        });
+                    });
+                    
+                    // Update overlay clickability (enable when not in edit mode)
+                    updateAllOverlaysClickability();
+                }
+            });
+
+            // Batch DOM updates for performance
+            function batchUpdate(callback) {
+                updateBatch.push(callback);
+                if (!rafPending) {
+                    rafPending = true;
+                    requestAnimationFrame(() => {
+                        const batch = updateBatch.splice(0);
+                        updateBatch = [];
+                        rafPending = false;
+                        batch.forEach(cb => cb());
+                    });
+                }
+            }
+            
+            // Throttle function for performance
+            function throttle(func, limit) {
+                let inThrottle;
+                return function(...args) {
+                    if (!inThrottle) {
+                        func.apply(this, args);
+                        inThrottle = true;
+                        setTimeout(() => inThrottle = false, limit);
+                    }
+                };
+            }
+            
+            // Initialize grid with DOM elements (optimized)
+            function initializeGrid() {
+                grid = document.getElementById('pixelGrid');
+                
+                // Create pixels using DocumentFragment for performance
+                const fragment = document.createDocumentFragment();
+                const pixelElements = new Array(gridSize);
+                
+                for (let i = 0; i < gridSize; i++) {
+                    const pixel = document.createElement('div');
+                    pixel.className = 'pixel disabled';
+                    pixel.id = `pixel-${i}`;
+                    pixel.dataset.index = i;
+                    pixelElements[i] = pixel;
+                    fragment.appendChild(pixel);
+                }
+                
+                grid.appendChild(fragment);
+                
+                // Use event delegation for better performance
+                grid.addEventListener('mousedown', handleMouseDown);
+                grid.addEventListener('mousemove', throttle(handleMouseMove, 16)); // ~60fps
+                grid.addEventListener('mouseup', handleMouseUp);
+                grid.addEventListener('mouseleave', handleMouseLeave);
+            }
+            
+            // Get pixel ID from event target
+            function getPixelIdFromTarget(target) {
+                if (target && target.classList && target.classList.contains('pixel')) {
+                    return parseInt(target.dataset.index);
+                }
+                return null;
+            }
+            
+            // Mouse event handlers
+            function handleMouseDown(e) {
+                if (!selectionEnabled || hasSelectedBlock) return;
+                
+                const pixelId = getPixelIdFromTarget(e.target);
+                if (pixelId !== null) {
+                    e.preventDefault();
+                    isSelecting = true;
+                    hasDragged = false;
+                    selectionStart = pixelId;
+                    selectionEnd = pixelId;
+                    updateSelectionOverlay();
+                }
+            }
+            
+            function handleMouseMove(e) {
+                const pixelId = getPixelIdFromTarget(e.target);
+                
+                if (isSelecting && selectionEnabled && !hasSelectedBlock && selectionStart !== null) {
+                    if (pixelId !== null) {
+                        hasDragged = true;
+                        selectionEnd = pixelId;
+                        updateSelectionOverlay();
+                    }
+                }
+            }
+            
+            function handleMouseUp(e) {
+                if (isSelecting && selectionEnabled && selectionStart !== null && selectionEnd !== null) {
+                    if (hasDragged && selectionStart !== selectionEnd) {
+                        const success = fillSelectedArea(selectionStart, selectionEnd);
+                        if (!success) {
+                            alert('Cannot fill this area. It may overlap with existing cubes or go outside the grid.');
+                        }
+                    }
+                    
+                    // Remove selection overlay
+                    if (selectionOverlay) {
+                        selectionOverlay.remove();
+                        selectionOverlay = null;
+                    }
+                    
+                    isSelecting = false;
+                    hasDragged = false;
+                    selectionStart = null;
+                    selectionEnd = null;
+                }
+            }
+            
+            function handleMouseLeave(e) {
+                if (isSelecting) return;
+                
+                if (selectionOverlay) {
+                    selectionOverlay.remove();
+                    selectionOverlay = null;
+                }
+            }
+            
+            // Update selection overlay (optimized DOM)
+            function updateSelectionOverlay() {
+                if (!isSelecting || selectionStart === null || selectionEnd === null || !hasDragged) {
+                    if (selectionOverlay) {
+                        selectionOverlay.remove();
+                        selectionOverlay = null;
+                    }
+                    return;
+                }
+                
+                const start = getPixelPosition(selectionStart);
+                const end = getPixelPosition(selectionEnd);
+                
+                const minRow = Math.min(start.row, end.row);
+                const maxRow = Math.max(start.row, end.row);
+                const minCol = Math.min(start.col, end.col);
+                const maxCol = Math.max(start.col, end.col);
+                
+                // Get pixel elements
+                const startPixel = document.getElementById(`pixel-${selectionStart}`);
+                const endPixel = document.getElementById(`pixel-${selectionEnd}`);
+                if (!startPixel || !endPixel) return;
+                
+                const gridRect = grid.getBoundingClientRect();
+                const startRect = startPixel.getBoundingClientRect();
+                const endRect = endPixel.getBoundingClientRect();
+                
+                // Calculate overlay position
+                const left = Math.min(startRect.left, endRect.left) - gridRect.left + grid.scrollLeft;
+                const top = Math.min(startRect.top, endRect.top) - gridRect.top + grid.scrollTop;
+                const right = Math.max(startRect.right, endRect.right) - gridRect.left + grid.scrollLeft;
+                const bottom = Math.max(startRect.bottom, endRect.bottom) - gridRect.top + grid.scrollTop;
+                
+                const width = right - left;
+                const height = bottom - top;
+                
+                // Create or update overlay
+                if (!selectionOverlay) {
+                    selectionOverlay = document.createElement('div');
+                    selectionOverlay.className = 'selection-overlay';
+                    grid.appendChild(selectionOverlay);
+                }
+                
+                selectionOverlay.style.left = left + 'px';
+                selectionOverlay.style.top = top + 'px';
+                selectionOverlay.style.width = width + 'px';
+                selectionOverlay.style.height = height + 'px';
+            }
+            
+            // Clear all selected pixels
+            function clearAllSelected() {
+                // Get all filled pixels that are not loaded
+                const filledPixels = Object.keys(pixels).filter(id => {
+                    const pixelId = parseInt(id);
+                    return pixels[id] === true && !loadedPixels.has(pixelId);
+                });
+                
+                // Remove temp images
+                Object.keys(pixelImages).forEach(key => {
+                    if (key.startsWith('tempImage-')) {
+                        const overlay = document.getElementById(key);
+                        if (overlay) overlay.remove();
+                        delete pixelImages[key];
+                    }
+                });
+                
+                // Rebuild cache after removing images
+                rebuildPixelImageCache();
+                
+                // Unfill all non-loaded pixels (batch DOM update)
+                batchUpdate(() => {
+                    filledPixels.forEach(id => {
+                        const pixelId = parseInt(id);
+                        const pixel = document.getElementById(`pixel-${pixelId}`);
+                        if (pixel) {
+                            pixel.classList.remove('owned', 'has-image');
+                        }
+                        pixels[pixelId] = false;
+                        delete pixels[pixelId];
+                    });
+                });
+                
+                // Reset selection state
+                hasSelectedBlock = false;
+                lastFilledPixels = [];
+                uploadedImageData = null;
+                window.pendingRequestData = null;
+                
+                // Hide request button
+                document.getElementById('requestBtn').style.display = 'none';
+                
+                updateSelectedCount();
+            }
+
+            // Show upload button (always visible in edit mode, disabled if < 5)
+            function showUploadButton() {
+                const uploadBtn = document.getElementById('uploadBtn');
+                
+                if (selectionEnabled) {
+                    // Always show in edit mode
+                    uploadBtn.style.display = 'block';
+                    
+                    if (selectedCount >= 5) {
+                        // Enable button if 5 or more cubes selected
+                        uploadBtn.disabled = false;
+                        uploadBtn.title = 'Upload Image';
+                        uploadBtn.style.opacity = '1';
+                    } else {
+                        // Disable button if less than 5 cubes
+                        uploadBtn.disabled = true;
+                        uploadBtn.title = 'Need minimum 5 cubes';
+                        uploadBtn.style.opacity = '0.5';
+                    }
+                } else {
+                    // Hide when not in edit mode
+                    uploadBtn.style.display = 'none';
+                }
+            }
+
+            // Count selected pixels (only non-loaded pixels for upload button)
+            function updateSelectedCount() {
+                // Count only non-loaded pixels that are filled
+                selectedCount = Object.keys(pixels).filter(id => {
+                    const pixelId = parseInt(id);
+                    return pixels[id] === true && !loadedPixels.has(pixelId);
+                }).length;
+                showUploadButton();
+            }
+
+            // Get pixel position from pixel ID
+            function getPixelPosition(pixelId) {
+                const row = Math.floor(pixelId / gridWidth);
+                const col = pixelId % gridWidth;
+                return { row, col };
+            }
+
+            // Fill selected area
+            function fillSelectedArea(startId, endId) {
+                const start = getPixelPosition(startId);
+                const end = getPixelPosition(endId);
+                
+                const minRow = Math.min(start.row, end.row);
+                const maxRow = Math.max(start.row, end.row);
+                const minCol = Math.min(start.col, end.col);
+                const maxCol = Math.max(start.col, end.col);
+                
+                // Check if area overlaps with existing loaded pixels (protected)
+                // Also check for non-loaded filled pixels from current session
+                for (let r = minRow; r <= maxRow; r++) {
+                    for (let c = minCol; c <= maxCol; c++) {
+                        if (r >= 0 && r < gridHeight && c >= 0 && c < gridWidth) {
+                            const pixelId = r * gridWidth + c;
+                            // Prevent overlapping with loaded pixels (protected from existing projects)
+                            if (loadedPixels.has(pixelId)) {
+                                // Cannot select area that overlaps with loaded project
+                                return false;
+                            }
+                            // Also prevent overlapping with non-loaded filled pixels from current session
+                            if (pixels[pixelId] && !loadedPixels.has(pixelId)) {
+                                // Overlap detected with non-loaded pixels from current session
+                                return false;
+                            }
+                        } else {
+                            // Out of bounds
+                            return false;
+                        }
+                    }
+                }
+                
+                // Store filled pixels for clearing
+                lastFilledPixels = [];
+                
+                // Fill the entire area (batch DOM operation for performance)
+                batchUpdate(() => {
+                    for (let r = minRow; r <= maxRow; r++) {
+                        for (let c = minCol; c <= maxCol; c++) {
+                            const pixelId = r * gridWidth + c;
+                            if (!pixels[pixelId]) {
+                                pixels[pixelId] = true;
+                                lastFilledPixels.push(pixelId);
+                                
+                                const pixel = document.getElementById(`pixel-${pixelId}`);
+                                if (pixel) {
+                                    pixel.classList.add('owned');
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Update count and button state after all pixels are filled
+                    updateSelectedCount();
+                });
+                
+                // Mark that a block has been selected
+                hasSelectedBlock = true;
+                grid.classList.add('has-selection');
+                
+                // Show "Clear and Try Again" button
+                document.getElementById('clearBtn').style.display = 'block';
+                
+                return true;
+            }
+            
+            // Clear filled block and re-enable selection
+            function clearAndTryAgain() {
+                // Get all filled pixels that are not loaded
+                const filledPixels = Object.keys(pixels).filter(id => {
+                    const pixelId = parseInt(id);
+                    return pixels[id] === true && !loadedPixels.has(pixelId);
+                });
+                
+                // Remove temp images
+                Object.keys(pixelImages).forEach(key => {
+                    if (key.startsWith('tempImage-')) {
+                        const overlay = document.getElementById(key);
+                        if (overlay) overlay.remove();
+                        delete pixelImages[key];
+                    }
+                });
+                
+                // Rebuild cache after removing images
+                rebuildPixelImageCache();
+                
+                // Unfill all non-loaded pixels (batch DOM update)
+                batchUpdate(() => {
+                    filledPixels.forEach(id => {
+                        const pixelId = parseInt(id);
+                        const pixel = document.getElementById(`pixel-${pixelId}`);
+                        if (pixel) {
+                            pixel.classList.remove('owned', 'has-image');
+                        }
+                        pixels[pixelId] = false;
+                        delete pixels[pixelId];
+                    });
+                    
+                    // Update count and button state after clearing pixels
+                    updateSelectedCount();
+                });
+                
+                // Reset selection state
+                hasSelectedBlock = false;
+                lastFilledPixels = [];
+                uploadedImageData = null;
+                window.pendingRequestData = null;
+                grid.classList.remove('has-selection');
+                
+                // Hide buttons
+                document.getElementById('clearBtn').style.display = 'none';
+                document.getElementById('requestBtn').style.display = 'none';
+                
+                // Reset selection state to allow new selection
+                isSelecting = false;
+                selectionStart = null;
+                selectionEnd = null;
+            }
+            
+            // Clear button event listener
+            document.getElementById('clearBtn').addEventListener('click', clearAndTryAgain);
+
+            // Build pixel image cache (optimized)
+            function rebuildPixelImageCache() {
+                pixelImageCache.clear();
+                Object.keys(pixelImages).forEach(key => {
+                    const imageData = pixelImages[key];
+                    if (imageData && imageData.pixels && Array.isArray(imageData.pixels)) {
+                        imageData.pixels.forEach(pixelId => {
+                            pixelImageCache.set(pixelId, true);
+                        });
+                    }
+                });
+            }
+            
+            // Check if pixel is covered by an image (optimized with cache)
+            function pixelHasImage(pixelId) {
+                return pixelImageCache.has(pixelId);
+            }
+            
+            // Fill pixel - make it look like a cube (DOM-based)
+            function fillPixel(id) {
+                if (pixels[id]) return; // Already filled
+
+                pixels[id] = true;
+                const pixel = document.getElementById(`pixel-${id}`);
+                if (pixel) {
+                    pixel.classList.add('owned');
+                }
+                updateSelectedCount();
+            }
+
+            // Unfill pixel - remove cube styling (DOM-based)
+            function unfillPixel(id) {
+                if (!pixels[id]) return; // Already unfilled
+
+                pixels[id] = false;
+                delete pixels[id];
+                
+                const pixel = document.getElementById(`pixel-${id}`);
+                if (pixel) {
+                    pixel.classList.remove('owned', 'has-image');
+                }
+                
+                // Remove image if exists and is temp
+                if (pixelImages[id] && pixelImages[id].temp) {
+                    const overlay = document.getElementById(id);
+                    if (overlay) overlay.remove();
+                    delete pixelImages[id];
+                    rebuildPixelImageCache();
+                }
+                
+                updateSelectedCount();
+            }
+
+            // Upload image button click - directly trigger file input
+            document.getElementById('uploadBtn').addEventListener('click', () => {
+                // Only allow upload if button is not disabled (5+ cubes selected)
+                if (!document.getElementById('uploadBtn').disabled) {
+                    document.getElementById('imageInput').click();
+                }
+            });
+
+            // File input change - upload immediately
+            document.getElementById('imageInput').addEventListener('change', function() {
+                const file = this.files[0];
+                if (file) {
+                    uploadImage(file);
+                }
+            });
+
+            // Upload image function (DOM-based)
+            function uploadImage(file) {
+                if (!file) {
+                    return;
+                }
+
+                // Get only the newly selected pixels (from lastFilledPixels), not all filled pixels
+                // This ensures the image is placed only on the currently selected area
+                const selectedPixels = lastFilledPixels.length > 0 
+                    ? [...lastFilledPixels] // Use lastFilledPixels if available
+                    : Object.keys(pixels)
+                        .filter(id => pixels[id] === true && !loadedPixels.has(parseInt(id)))
+                        .map(id => parseInt(id)); // Fallback: use non-loaded filled pixels
+
+                if (selectedPixels.length === 0) {
+                    alert('No pixels selected');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        // Calculate bounding box of selected pixels
+                        const rows = selectedPixels.map(id => Math.floor(id / gridWidth));
+                        const cols = selectedPixels.map(id => id % gridWidth);
+                        
+                        const minRow = Math.min(...rows);
+                        const maxRow = Math.max(...rows);
+                        const minCol = Math.min(...cols);
+                        const maxCol = Math.max(...cols);
+                        
+                        // Get actual pixel elements to calculate size
+                        const firstPixel = document.getElementById(`pixel-${selectedPixels[0]}`);
+                        if (!firstPixel) {
+                            alert('Error: Could not find pixels');
+                            return;
+                        }
+                        
+                        const pixelRect = firstPixel.getBoundingClientRect();
+                        const pixelSize = pixelRect.width; // Should be 10px
+                        
+                        const width = maxCol - minCol + 1;
+                        const height = maxRow - minRow + 1;
+                        
+                        // Calculate overlay size in pixels (no gaps since gap: 0)
+                        const overlayWidthPx = width * pixelSize;
+                        const overlayHeightPx = height * pixelSize;
+                        
+                        // Get the data URL from the image
+                        const imageDataURL = e.target.result;
+                        
+                        // Store dimensions
+                        uploadedImageData = {
+                            url: imageDataURL,
+                            width: overlayWidthPx,
+                            height: overlayHeightPx
+                        };
+                        
+                        // Apply image to selected pixels with the data URL
+                        // Use temporary ID for new uploads (will be saved with request ID after submission)
+                        const tempOverlayId = 'tempImage-' + Date.now();
+                        applyImageToPixels(selectedPixels, imageDataURL, overlayWidthPx, overlayHeightPx, tempOverlayId);
+                        
+                        // Store data for sending request
+                        window.pendingRequestData = {
+                            imageDataURL: imageDataURL,
+                            selectedPixels: selectedPixels,
+                            overlayId: tempOverlayId
+                        };
+                        
+                        console.log('Image uploaded and applied to', selectedPixels.length, 'pixels', 
+                                   'at size:', overlayWidthPx, 'x', overlayHeightPx);
+                        
+                        // Show "Request to Make Place Yours" button in header
+                        document.getElementById('requestBtn').style.display = 'block';
+                        
+                        // Reset file input
+                        document.getElementById('imageInput').value = '';
+                    };
+                    img.onerror = function() {
+                        alert('Error loading image. Please try a different image file.');
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            // Apply image to selected pixels as DOM overlay (optimized)
+            function applyImageToPixels(selectedPixels, imageDataURL, overlayWidthPx, overlayHeightPx, overlayId = null, link = null, text = null) {
+                // Generate unique overlay ID if not provided
+                if (!overlayId) {
+                    overlayId = 'imageOverlay-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                }
+                
+                // Check if overlay with this ID already exists
+                const existingOverlay = document.getElementById(overlayId);
+                if (existingOverlay) {
+                    existingOverlay.remove(); // Replace if same ID (for updates)
+                }
+                
+                if (selectedPixels.length === 0) return;
+                
+                // Find bounding box of selected pixels
+                let minLeft = Infinity;
+                let minTop = Infinity;
+                let maxRight = -Infinity;
+                let maxBottom = -Infinity;
+                
+                selectedPixels.forEach(pixelId => {
+                    const pixel = document.getElementById(`pixel-${pixelId}`);
+                    if (pixel) {
+                        const rect = pixel.getBoundingClientRect();
+                        const gridRect = grid.getBoundingClientRect();
+                        
+                        const left = rect.left - gridRect.left + grid.scrollLeft;
+                        const top = rect.top - gridRect.top + grid.scrollTop;
+                        const right = rect.right - gridRect.left + grid.scrollLeft;
+                        const bottom = rect.bottom - gridRect.top + grid.scrollTop;
+                        
+                        if (left < minLeft) minLeft = left;
+                        if (top < minTop) minTop = top;
+                        if (right > maxRight) maxRight = right;
+                        if (bottom > maxBottom) maxBottom = bottom;
+                    }
+                });
+                
+                // Create overlay div with unique ID
+                const overlay = document.createElement('div');
+                overlay.id = overlayId;
+                overlay.className = 'image-overlay';
+                overlay.dataset.pixels = selectedPixels.join(',');
+                overlay.dataset.link = link || '';
+                overlay.dataset.text = text || '';
+                overlay.style.backgroundImage = `url("${imageDataURL}")`;
+                overlay.style.backgroundSize = `${overlayWidthPx}px ${overlayHeightPx}px`;
+                overlay.style.backgroundPosition = '0 0';
+                overlay.style.backgroundRepeat = 'no-repeat';
+                overlay.style.left = minLeft + 'px';
+                overlay.style.top = minTop + 'px';
+                overlay.style.width = overlayWidthPx + 'px';
+                overlay.style.height = overlayHeightPx + 'px';
+                
+                // Make clickable if has link and not in edit mode
+                updateOverlayClickability(overlay);
+                
+                // Add click event to open link in new window
+                overlay.addEventListener('click', handleOverlayClick);
+                
+                // Add hover events for tooltip
+                overlay.addEventListener('mouseenter', handleOverlayHover);
+                overlay.addEventListener('mouseleave', handleOverlayLeave);
+                
+                // Store image data
+                pixelImages[overlayId] = {
+                    pixels: selectedPixels,
+                    overlay: overlay,
+                    link: link,
+                    text: text,
+                    temp: overlayId.startsWith('tempImage-')
+                };
+                
+                // Add overlay to grid
+                grid.appendChild(overlay);
+                
+                // Rebuild cache
+                rebuildPixelImageCache();
+                
+                // Mark pixels as having image (to hide cube styling)
+                batchUpdate(() => {
+                    selectedPixels.forEach(pixelId => {
+                        const pixel = document.getElementById(`pixel-${pixelId}`);
+                        if (pixel) {
+                            pixel.classList.add('has-image');
+                        }
+                    });
+                });
+                
+                console.log('✓ Image applied to DOM:', {
+                    overlayId: overlayId,
+                    pixels: selectedPixels.length,
+                    size: overlayWidthPx + 'x' + overlayHeightPx,
+                    hasLink: !!link,
+                    hasText: !!text
+                });
+            }
+            
+            // Update overlay clickability based on edit mode
+            function updateOverlayClickability(overlay) {
+                const link = overlay.dataset.link;
+                const shouldBeClickable = !selectionEnabled && link && link.trim() !== '';
+                const isCurrentlyClickable = overlay.classList.contains('clickable');
+                
+                if (shouldBeClickable && !isCurrentlyClickable) {
+                    overlay.classList.add('clickable');
+                } else if (!shouldBeClickable && isCurrentlyClickable) {
+                    overlay.classList.remove('clickable');
+                }
+            }
+            
+            // Update all overlays clickability when edit mode changes
+            function updateAllOverlaysClickability() {
+                document.querySelectorAll('.image-overlay').forEach(overlay => {
+                    updateOverlayClickability(overlay);
+                });
+            }
+            
+            // Handle overlay click
+            function handleOverlayClick(e) {
+                const overlay = e.currentTarget;
+                const link = overlay.dataset.link;
+                if (link && link.trim() !== '' && !selectionEnabled) {
+                    window.open(link, '_blank', 'noopener,noreferrer');
+                }
+            }
+            
+            // Handle overlay hover for tooltip
+            function handleOverlayHover(e) {
+                if (selectionEnabled) return; // Don't show tooltip in edit mode
+                
+                const overlay = e.currentTarget;
+                const link = overlay.dataset.link;
+                const text = overlay.dataset.text;
+                
+                // Only show tooltip if there's link or text
+                if (!link && !text) return;
+                
+                // Create tooltip if it doesn't exist
+                if (!tooltip) {
+                    tooltip = document.createElement('div');
+                    tooltip.className = 'tooltip';
+                    document.body.appendChild(tooltip);
+                }
+                
+                // Build tooltip content - show only text
+                let tooltipContent = '';
+                if (text) {
+                    tooltipContent = text;
+                }
+                
+                // Only show tooltip if there's text
+                if (!tooltipContent) return;
+                
+                tooltip.innerHTML = tooltipContent;
+                
+                // Position tooltip
+                const rect = overlay.getBoundingClientRect();
+                tooltip.style.left = (rect.left + rect.width / 2 - tooltip.offsetWidth / 2) + 'px';
+                tooltip.style.top = (rect.top - tooltip.offsetHeight - 10) + 'px';
+                
+                // Adjust if tooltip goes off screen
+                setTimeout(() => {
+                    const tooltipRect = tooltip.getBoundingClientRect();
+                    if (tooltipRect.left < 10) {
+                        tooltip.style.left = (rect.left + 10) + 'px';
+                    }
+                    if (tooltipRect.right > window.innerWidth - 10) {
+                        tooltip.style.left = (window.innerWidth - tooltipRect.width - 10) + 'px';
+                    }
+                    if (tooltipRect.top < 10) {
+                        tooltip.style.top = (rect.bottom + 10) + 'px';
+                    }
+                    tooltip.classList.add('visible');
+                }, 10);
+            }
+            
+            // Handle overlay leave (hide tooltip)
+            function handleOverlayLeave(e) {
+                if (tooltip) {
+                    tooltip.classList.remove('visible');
+                    // Remove tooltip after transition
+                    if (tooltipTimeout) clearTimeout(tooltipTimeout);
+                    tooltipTimeout = setTimeout(() => {
+                        if (tooltip && !tooltip.classList.contains('visible')) {
+                            tooltip.innerHTML = '';
+                        }
+                    }, 200);
+                }
+            }
+
+            // Show request modal
+            document.getElementById('requestBtn').addEventListener('click', () => {
+                document.getElementById('requestModal').style.display = 'block';
+            });
+
+            // Close request modal
+            function closeRequestModal() {
+                document.getElementById('requestModal').style.display = 'none';
+                // Reset form
+                document.getElementById('requestForm').reset();
+            }
+
+            // Send request to save place (make it global)
+            window.sendRequest = async function() {
+                if (!window.pendingRequestData) {
+                    alert('No image data available. Please upload an image first.');
+                    return;
+                }
+
+                const { imageDataURL, selectedPixels } = window.pendingRequestData;
+                
+                // Get form values
+                const link = document.getElementById('requestLink').value.trim();
+                const text = document.getElementById('requestText').value.trim();
+                const email = document.getElementById('requestEmail').value.trim();
+                const telegram = document.getElementById('requestTelegram').value.trim();
+
+                // Validate required fields
+                if (!email) {
+                    alert('Please enter your email address.');
+                    return;
+                }
+
+                try {
+                    // Store image position data
+                    const imagePosition = imageDataURL ? {
+                        pixels: selectedPixels,
+                        imageData: imageDataURL
+                    } : null;
+
+                    // Create pixels object with only the selected pixels for this request
+                    // This ensures we don't overwrite existing loaded projects
+                    const requestPixels = {};
+                    selectedPixels.forEach(pixelId => {
+                        requestPixels[pixelId] = true;
+                    });
+
+                    const response = await fetch('/api/save-request', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            pixels: requestPixels, // Only save the pixels for this specific request
+                            imageData: imageDataURL || null,
+                            imagePosition: imagePosition,
+                            link: link || null,
+                            text: text || null,
+                            email: email,
+                            telegram: telegram || null
+                        })
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        alert('Request sent successfully! Our admin will contact you within 12 hours.');
+                        closeRequestModal();
+                        // Hide request button after successful submission
+                        document.getElementById('requestBtn').style.display = 'none';
+                        window.pendingRequestData = null;
+                    } else {
+                        alert('Error sending request: ' + (result.error || 'Unknown error'));
+                    }
+                } catch (error) {
+                    console.error('Error sending request:', error);
+                    alert('Error sending request. Please try again.');
+                }
+            };
+
+            // Close request modal (make it global)
+            window.closeRequestModal = closeRequestModal;
+
+            // Load project from backend (DOM-based, optimized)
+            async function loadProjectFromBackend() {
+                try {
+                    const response = await fetch('/api/load-project');
+                    const requestsList = await response.json(); // Response is directly an array
+                    
+                    // Check if response is array
+                    if (!Array.isArray(requestsList)) {
+                        console.error('Response is not an array:', requestsList);
+                        return;
+                    }
+                    
+                    console.log('✓ Loaded project data from /api/load-project:', {
+                        requestsCount: requestsList.length,
+                        isArray: Array.isArray(requestsList),
+                        firstRequest: requestsList[0] ? {
+                            id: requestsList[0].id,
+                            hasImage: !!(requestsList[0].imageData && requestsList[0].imagePosition),
+                            pixelsCount: requestsList[0].pixels ? Object.keys(requestsList[0].pixels).length : 0,
+                            status: requestsList[0].status
+                        } : 'none'
+                    });
+                    
+                    if (requestsList.length === 0) {
+                        console.log('No requests found in loaded data');
+                        return;
+                    }
+                    
+                    // Batch restore pixels for performance
+                    batchUpdate(() => {
+                        requestsList.forEach((request) => {
+                            // Restore pixels for this request
+                            if (request.pixels) {
+                                Object.keys(request.pixels).forEach(pixelId => {
+                                    const id = parseInt(pixelId);
+                                    if (request.pixels[pixelId] === true) {
+                                        pixels[id] = true;
+                                        loadedPixels.add(id); // Track that this pixel was loaded from backend
+                                        
+                                        const pixel = document.getElementById(`pixel-${id}`);
+                                        if (pixel) {
+                                            pixel.classList.add('owned');
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    });
+                    
+                    // Process images after a short delay to ensure DOM is ready
+                    requestsList.forEach((request, index) => {
+                        // Restore image for this request if it exists
+                        if (request.imageData && request.imagePosition && request.imagePosition.pixels) {
+                            const selectedPixels = request.imagePosition.pixels.map(id => parseInt(id));
+                            const imageDataURL = request.imageData;
+                            
+                            console.log('Processing request:', {
+                                id: request.id,
+                                pixels: selectedPixels.length,
+                                hasImage: !!imageDataURL,
+                                status: request.status
+                            });
+                            
+                            // Mark all image pixels as loaded (protected)
+                            selectedPixels.forEach(pixelId => {
+                                loadedPixels.add(pixelId);
+                                fillPixel(pixelId); // Ensure pixel is filled
+                            });
+                            
+                            // Wait for DOM to be ready, then apply image
+                            setTimeout(() => {
+                                if (selectedPixels.length > 0) {
+                                    const firstPixel = document.getElementById(`pixel-${selectedPixels[0]}`);
+                                    if (firstPixel) {
+                                        const pixelRect = firstPixel.getBoundingClientRect();
+                                        const actualPixelSize = pixelRect.width;
+                                        
+                                        const rows = selectedPixels.map(id => Math.floor(id / gridWidth));
+                                        const cols = selectedPixels.map(id => id % gridWidth);
+                                        const width = Math.max(...cols) - Math.min(...cols) + 1;
+                                        const height = Math.max(...rows) - Math.min(...rows) + 1;
+                                        
+                                        const overlayWidthPx = width * actualPixelSize;
+                                        const overlayHeightPx = height * actualPixelSize;
+                                        
+                                        // Use request ID as overlay ID for loaded images
+                                        const overlayId = 'loadedImage-' + request.id;
+                                        
+                                        console.log('Applying image overlay for request', request.id, ':', {
+                                            overlayId: overlayId,
+                                            pixels: selectedPixels.length,
+                                            size: overlayWidthPx + 'x' + overlayHeightPx,
+                                            hasLink: !!request.link,
+                                            hasText: !!request.text
+                                        });
+                                        
+                                        // Apply image using DOM overlay with link and text data
+                                        applyImageToPixels(selectedPixels, imageDataURL, overlayWidthPx, overlayHeightPx, overlayId, request.link || null, request.text || null);
+                                    }
+                                }
+                            }, 300 + (index * 50)); // Stagger loading for better performance
+                        }
+                    });
+                    
+                    updateSelectedCount();
+                    rebuildPixelImageCache();
+                    
+                    console.log('✓ Project loaded successfully:', {
+                        totalRequests: requestsList.length,
+                        totalLoadedPixels: loadedPixels.size,
+                        requestsWithImages: requestsList.filter(r => r.imageData && r.imagePosition).length
+                    });
+                } catch (error) {
+                    console.error('Error loading project:', error);
+                    // Silently fail if backend is not available
+                }
+            }
+            
+            // Initialize everything
+            updateSelectedCount();
+            
+            // Load project on page load after DOM is ready
+            setTimeout(() => {
+                loadProjectFromBackend();
+            }, 300);
+        }); // End DOMContentLoaded
+    </script>
+</body>
+</html>
+

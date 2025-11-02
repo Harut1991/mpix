@@ -1,0 +1,8 @@
+node_modules/
+uploads/
+.env
+*.log
+*.db
+pixels.db
+pixels-db.json
+
