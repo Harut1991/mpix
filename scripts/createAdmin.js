@@ -1,13 +1,11 @@
 require('dotenv').config();
-const mongoose = require('mongoose');
-const User = require('../models/User');
-
-const connectDB = require('../config/database');
+const { dbPromise } = require('../config/database');
+const UserModel = require('../models/User');
 
 async function createAdmin() {
   try {
-    // Connect to database
-    await connectDB();
+    // Wait for database to initialize
+    await dbPromise;
 
     const args = process.argv.slice(2);
     const username = args[0] || 'admin';
@@ -15,27 +13,35 @@ async function createAdmin() {
     const password = args[2] || 'admin123';
 
     // Check if admin already exists
-    const existingAdmin = await User.findOne({ 
-      $or: [{ username }, { email }, { role: 'admin' }] 
-    });
+    const existingAdminByUsername = UserModel.findUser({ username: username.toLowerCase().trim() });
+    const existingAdminByEmail = UserModel.findUser({ email: email.toLowerCase().trim() });
+    const existingAdminByRole = UserModel.findUser({ role: 'admin' });
 
-    if (existingAdmin) {
+    if (existingAdminByUsername || existingAdminByEmail || existingAdminByRole) {
       console.log('Admin user already exists!');
-      console.log('Username:', existingAdmin.username);
-      console.log('Email:', existingAdmin.email);
-      console.log('Role:', existingAdmin.role);
+      if (existingAdminByUsername) {
+        console.log('Username:', existingAdminByUsername.username);
+        console.log('Email:', existingAdminByUsername.email);
+        console.log('Role:', existingAdminByUsername.role);
+      } else if (existingAdminByEmail) {
+        console.log('Username:', existingAdminByEmail.username);
+        console.log('Email:', existingAdminByEmail.email);
+        console.log('Role:', existingAdminByEmail.role);
+      } else if (existingAdminByRole) {
+        console.log('Username:', existingAdminByRole.username);
+        console.log('Email:', existingAdminByRole.email);
+        console.log('Role:', existingAdminByRole.role);
+      }
       process.exit(0);
     }
 
     // Create admin user
-    const admin = new User({
+    const admin = await UserModel.createUser({
       username,
       email,
       password,
       role: 'admin'
     });
-
-    await admin.save();
 
     console.log('Admin user created successfully!');
     console.log('Username:', username);
@@ -51,4 +57,3 @@ async function createAdmin() {
 }
 
 createAdmin();
-

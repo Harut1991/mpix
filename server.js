@@ -6,17 +6,24 @@ const session = require('express-session');
 const fs = require('fs');
 const path = require('path');
 
-const connectDB = require('./config/database');
-const Request = require('./models/Request');
-const { pixelsMapToObject } = require('./models/Request');
+const { dbPromise } = require('./config/database');
+const RequestModel = require('./models/Request');
+const { pixelsMapToObject } = RequestModel;
 const { isAdmin, optionalAuth } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Connect to MongoDB
-connectDB();
+// Wait for SQLite database to initialize before starting server
+let serverReady = false;
+dbPromise.then(() => {
+  serverReady = true;
+  console.log('Database initialized, server ready');
+}).catch(err => {
+  console.error('Database initialization error:', err);
+  process.exit(1);
+});
 
 // Middleware
 app.use(cors({
@@ -130,14 +137,6 @@ app.post('/api/save-request', optionalAuth, async (req, res) => {
       }
     }
 
-    // Convert pixels object to Map for MongoDB
-    const pixelsMap = new Map();
-    if (pixels && typeof pixels === 'object') {
-      Object.keys(pixels).forEach(key => {
-        pixelsMap.set(key, pixels[key] === true);
-      });
-    }
-
     // Normalize telegram to include @ if not present
     let normalizedTelegram = null;
     if (telegram && telegram.trim() !== '') {
@@ -148,9 +147,9 @@ app.post('/api/save-request', optionalAuth, async (req, res) => {
     }
 
     // Create new request
-    const newRequest = new Request({
+    const newRequest = await RequestModel.createRequest({
       userId: req.user ? req.user.id : null,
-      pixels: pixelsMap,
+      pixels: pixels,
       imageData: imageData || null,
       imagePosition: imagePosition || null,
       link: link && link.trim() !== '' ? link.trim() : null,
@@ -161,11 +160,6 @@ app.post('/api/save-request', optionalAuth, async (req, res) => {
       pixelCount: pixelCount ? parseInt(pixelCount) : null,
       status: 'pending'
     });
-
-    await newRequest.save();
-
-    // Convert to JSON format for response
-    const requestObj = newRequest.toJSON();
 
     res.json({ 
       success: true, 
@@ -183,26 +177,28 @@ app.post('/api/save-request', optionalAuth, async (req, res) => {
 app.get('/api/load-project', async (req, res) => {
   try {
     // Get all confirmed requests
-    const confirmed = await Request.find({ status: 'confirmed' })
-      .sort({ createdAt: -1 })
-      .lean();
+    const confirmed = await RequestModel.findRequests({ status: 'confirmed' }, { createdAt: -1 });
 
-    // Get all pending requests that are less than 12 hours old
+    // Get all pending requests and filter manually for date comparison
     const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
-    const pending = await Request.find({ 
-      status: 'pending',
-      createdAt: { $gte: twelveHoursAgo }
-    })
-      .sort({ createdAt: -1 })
-      .lean();
+    const allPending = await RequestModel.findRequests({ status: 'pending' }, { createdAt: -1 });
+    
+    // Filter pending requests that are less than 12 hours old
+    const filteredPending = allPending.filter(req => {
+      const createdAt = req.createdAt instanceof Date ? req.createdAt : new Date(req.createdAt);
+      return createdAt >= twelveHoursAgo;
+    });
 
     // Combine all requests
-    const allRequests = [...confirmed, ...pending];
+    const allRequests = [...confirmed, ...filteredPending];
 
     // Return list of all requests with their complete data as an array
     const requestsList = allRequests.map(req => {
-      // Convert pixels Map to object
+      // Convert pixels to object
       const pixels = pixelsMapToObject(req.pixels);
+
+      const createdAt = req.createdAt instanceof Date ? req.createdAt : new Date(req.createdAt);
+      const updatedAt = req.updatedAt instanceof Date ? req.updatedAt : (req.updatedAt ? new Date(req.updatedAt) : createdAt);
 
       return {
         id: req._id.toString(),
@@ -214,8 +210,8 @@ app.get('/api/load-project', async (req, res) => {
         email: req.email || null,
         telegram: req.telegram || null,
         status: req.status,
-        createdAt: req.createdAt ? req.createdAt.toISOString() : new Date().toISOString(),
-        updatedAt: req.updatedAt ? req.updatedAt.toISOString() : new Date().toISOString()
+        createdAt: createdAt.toISOString(),
+        updatedAt: updatedAt.toISOString()
       };
     });
 
@@ -235,15 +231,14 @@ app.post('/api/admin/approve/:id', isAdmin, async (req, res) => {
     const requestId = req.params.id;
     
     // Find request
-    const request = await Request.findById(requestId);
+    const request = await RequestModel.findRequestById(requestId);
 
     if (!request) {
       return res.status(404).json({ success: false, error: 'Request not found' });
     }
 
     // Update status
-    request.status = 'confirmed';
-    await request.save();
+    await RequestModel.updateRequest(requestId, { status: 'confirmed' });
 
     res.json({ success: true, message: 'Request approved successfully' });
   } catch (error) {
@@ -258,15 +253,14 @@ app.post('/api/admin/reject/:id', isAdmin, async (req, res) => {
     const requestId = req.params.id;
     
     // Find request
-    const request = await Request.findById(requestId);
+    const request = await RequestModel.findRequestById(requestId);
 
     if (!request) {
       return res.status(404).json({ success: false, error: 'Request not found' });
     }
 
     // Update status
-    request.status = 'rejected';
-    await request.save();
+    await RequestModel.updateRequest(requestId, { status: 'rejected' });
 
     res.json({ success: true, message: 'Request rejected successfully' });
   } catch (error) {
@@ -290,15 +284,14 @@ app.post('/api/admin/change-status/:id', isAdmin, async (req, res) => {
     }
     
     // Find request
-    const request = await Request.findById(requestId);
+    const request = await RequestModel.findRequestById(requestId);
 
     if (!request) {
       return res.status(404).json({ success: false, error: 'Request not found' });
     }
 
     // Update status
-    request.status = status;
-    await request.save();
+    await RequestModel.updateRequest(requestId, { status: status });
 
     res.json({ 
       success: true, 
@@ -313,14 +306,12 @@ app.post('/api/admin/change-status/:id', isAdmin, async (req, res) => {
 // Admin endpoint - get all requests
 app.get('/api/admin/requests', isAdmin, async (req, res) => {
   try {
-    const requests = await Request.find()
-      .sort({ createdAt: -1 })
-      .lean();
+    const requests = await RequestModel.findRequests({}, { createdAt: -1 });
 
     const requestsList = requests.map(req => {
       // Convert pixels Map to object
       const pixels = pixelsMapToObject(req.pixels);
-      const createdAt = req.createdAt || new Date();
+      const createdAt = req.createdAt instanceof Date ? req.createdAt : new Date(req.createdAt || Date.now());
       const isExpired = req.status === 'pending' && !isLessThan12HoursOld(createdAt);
 
       return {
@@ -336,7 +327,7 @@ app.get('/api/admin/requests', isAdmin, async (req, res) => {
         pixelCount: req.pixelCount || null,
         status: req.status,
         createdAt: createdAt.toISOString(),
-        updatedAt: req.updatedAt ? req.updatedAt.toISOString() : createdAt.toISOString(),
+        updatedAt: req.updatedAt ? (req.updatedAt instanceof Date ? req.updatedAt : new Date(req.updatedAt)).toISOString() : createdAt.toISOString(),
         effectiveStatus: isExpired ? 'expired' : req.status
       };
     });
@@ -378,7 +369,13 @@ app.get('/uploads/:filename', (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`MongoDB connection: ${process.env.MONGODB_URI || 'mongodb://localhost:27017/milionpixel'}`);
+// Wait for database to be ready before starting server
+dbPromise.then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`SQLite database initialized (sql.js) - data stored locally in ./data/database.db`);
+  });
+}).catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });

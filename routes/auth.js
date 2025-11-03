@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
+const UserModel = require('../models/User');
 
 // Register new user
 router.post('/register', async (req, res) => {
@@ -23,11 +23,10 @@ router.post('/register', async (req, res) => {
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ 
-      $or: [{ username }, { email }] 
-    });
+    const existingUserByUsername = await UserModel.findUser({ username: username.toLowerCase().trim() });
+    const existingUserByEmail = await UserModel.findUser({ email: email.toLowerCase().trim() });
 
-    if (existingUser) {
+    if (existingUserByUsername || existingUserByEmail) {
       return res.status(400).json({ 
         success: false, 
         error: 'Username or email already exists' 
@@ -39,17 +38,15 @@ router.post('/register', async (req, res) => {
     const userRole = role === 'admin' ? 'admin' : 'user';
 
     // Create new user
-    const user = new User({
+    const user = await UserModel.createUser({
       username,
       email,
       password,
       role: userRole
     });
 
-    await user.save();
-
     // Set session (auto-login after registration)
-    req.session.userId = user._id.toString();
+    req.session.userId = user._id;
     req.session.username = user.username;
     req.session.role = user.role;
 
@@ -86,9 +83,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Find user
-    const user = await User.findOne({ 
-      $or: [{ username }, { email: username }] 
-    });
+    const user = await UserModel.findUserByUsernameOrEmail(username);
 
     if (!user) {
       return res.status(401).json({ 
@@ -98,7 +93,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Check password
-    const isMatch = await user.comparePassword(password);
+    const isMatch = await UserModel.comparePassword(user, password);
 
     if (!isMatch) {
       return res.status(401).json({ 
@@ -108,7 +103,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Set session
-    req.session.userId = user._id.toString();
+    req.session.userId = user._id;
     req.session.username = user.username;
     req.session.role = user.role;
 
