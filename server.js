@@ -201,7 +201,7 @@ app.get('/api/load-project', async (req, res) => {
       const updatedAt = req.updatedAt instanceof Date ? req.updatedAt : (req.updatedAt ? new Date(req.updatedAt) : createdAt);
 
       return {
-        id: req._id.toString(),
+        id: (req._id || req.id || '').toString(),
         pixels: pixels,
         imageData: req.imageData || null,
         imagePosition: req.imagePosition || null,
@@ -309,27 +309,62 @@ app.get('/api/admin/requests', isAdmin, async (req, res) => {
     const requests = await RequestModel.findRequests({}, { createdAt: -1 });
 
     const requestsList = requests.map(req => {
-      // Convert pixels Map to object
-      const pixels = pixelsMapToObject(req.pixels);
-      const createdAt = req.createdAt instanceof Date ? req.createdAt : new Date(req.createdAt || Date.now());
-      const isExpired = req.status === 'pending' && !isLessThan12HoursOld(createdAt);
+      try {
+        // Convert pixels Map to object
+        const pixels = pixelsMapToObject(req.pixels);
+        const createdAt = req.createdAt instanceof Date ? req.createdAt : new Date(req.createdAt || Date.now());
+        const isExpired = req.status === 'pending' && !isLessThan12HoursOld(createdAt);
 
-      return {
-        id: req._id.toString(),
-        pixels: pixels,
-        imageData: req.imageData,
-        imagePosition: req.imagePosition,
-        link: req.link,
-        text: req.text,
-        email: req.email,
-        telegram: req.telegram,
-        price: req.price || null,
-        pixelCount: req.pixelCount || null,
-        status: req.status,
-        createdAt: createdAt.toISOString(),
-        updatedAt: req.updatedAt ? (req.updatedAt instanceof Date ? req.updatedAt : new Date(req.updatedAt)).toISOString() : createdAt.toISOString(),
-        effectiveStatus: isExpired ? 'expired' : req.status
-      };
+        // Safely get ID
+        const requestId = (req._id || req.id || '').toString();
+        
+        // Safely parse imagePosition if it's a string
+        let imagePosition = req.imagePosition;
+        if (imagePosition && typeof imagePosition === 'string') {
+          try {
+            imagePosition = JSON.parse(imagePosition);
+          } catch (e) {
+            // If parsing fails, keep as null
+            imagePosition = null;
+          }
+        }
+
+        return {
+          id: requestId,
+          pixels: pixels,
+          imageData: req.imageData || null,
+          imagePosition: imagePosition,
+          link: req.link || null,
+          text: req.text || null,
+          email: req.email || null,
+          telegram: req.telegram || null,
+          price: req.price || null,
+          pixelCount: req.pixelCount || null,
+          status: req.status || 'pending',
+          createdAt: createdAt.toISOString(),
+          updatedAt: req.updatedAt ? (req.updatedAt instanceof Date ? req.updatedAt : new Date(req.updatedAt)).toISOString() : createdAt.toISOString(),
+          effectiveStatus: isExpired ? 'expired' : (req.status || 'pending')
+        };
+      } catch (mapError) {
+        console.error('Error mapping request:', mapError, req);
+        // Return a minimal safe object
+        return {
+          id: (req._id || req.id || 'unknown').toString(),
+          pixels: {},
+          imageData: null,
+          imagePosition: null,
+          link: null,
+          text: null,
+          email: req.email || null,
+          telegram: null,
+          price: null,
+          pixelCount: null,
+          status: req.status || 'pending',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          effectiveStatus: req.status || 'pending'
+        };
+      }
     });
 
     res.json({ success: true, data: requestsList });

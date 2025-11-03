@@ -97,10 +97,21 @@ function findRequests(query = {}, sort = { createdAt: -1 }) {
   
   while (stmt.step()) {
     const row = stmt.getAsObject();
+    let imagePosition = null;
+    if (row.imagePosition) {
+      try {
+        imagePosition = JSON.parse(row.imagePosition);
+      } catch (e) {
+        // If parsing fails, keep as null
+        imagePosition = null;
+      }
+    }
+    
     results.push({
       ...row,
+      _id: row.id,
       pixels: pixelsFromJSON(row.pixels),
-      imagePosition: row.imagePosition ? JSON.parse(row.imagePosition) : null,
+      imagePosition: imagePosition,
       createdAt: new Date(row.createdAt),
       updatedAt: new Date(row.updatedAt)
     });

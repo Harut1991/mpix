@@ -258,7 +258,7 @@
     <div class="header">
         <h1>Pixel Market</h1>
         <div class="header-buttons">
-            <a href="/admin" class="header-btn" style="text-decoration: none; display: inline-block; background: #444; color: #e0e0e0; margin-right: 10px;">Admin</a>
+            <a href="/admin" class="header-btn" id="adminBtn" style="text-decoration: none; display: none; background: #444; color: #e0e0e0; margin-right: 10px;">Admin</a>
             <button class="header-btn" id="startBtn">Select Area</button>
             <input type="file" id="imageInput" accept="image/*" style="display: none;">
             <button class="header-btn upload-btn" id="uploadBtn" style="display: none;">Upload Image</button>
@@ -326,6 +326,7 @@
         
         // DOM variables
         let grid = null;
+        let pixelElementsCache = new Map(); // Global cache of all pixel DOM elements (pixelId -> element)
         let pixelImageCache = new Map(); // Cache which pixels have images
         let selectionOverlay = null; // Selection overlay element
         let updateBatch = []; // Batch DOM updates
@@ -336,6 +337,7 @@
         // Wait for DOM to be fully loaded
         document.addEventListener('DOMContentLoaded', function() {
             initializeGrid();
+            checkAdminAuth();
             
             // Enable selection and update button
             document.getElementById('startBtn').addEventListener('click', () => {
@@ -428,18 +430,25 @@
                 
                 // Create pixels using DocumentFragment for performance
                 const fragment = document.createDocumentFragment();
-                const pixelElements = new Array(gridSize);
+                
+                // Clear and populate global pixel elements cache
+                pixelElementsCache.clear();
                 
                 for (let i = 0; i < gridSize; i++) {
                     const pixel = document.createElement('div');
                     pixel.className = 'pixel disabled';
                     pixel.id = `pixel-${i}`;
                     pixel.dataset.index = i;
-                    pixelElements[i] = pixel;
+                    
+                    // Store in global cache for fast access
+                    pixelElementsCache.set(i, pixel);
+                    
                     fragment.appendChild(pixel);
                 }
                 
                 grid.appendChild(fragment);
+                
+                console.log(`✓ Grid initialized with ${gridSize} pixels, cache populated`);
                 
                 // Use event delegation for better performance
                 grid.addEventListener('mousedown', handleMouseDown);
@@ -448,12 +457,54 @@
                 grid.addEventListener('mouseleave', handleMouseLeave);
             }
             
+            // Helper function to get pixel element from cache (fast)
+            function getPixelElement(pixelId) {
+                return pixelElementsCache.get(pixelId) || document.getElementById(`pixel-${pixelId}`);
+            }
+            
             // Get pixel ID from event target
             function getPixelIdFromTarget(target) {
                 if (target && target.classList && target.classList.contains('pixel')) {
                     return parseInt(target.dataset.index);
                 }
                 return null;
+            }
+            
+            // Batch add class to multiple pixels using optimized batching
+            function batchAddClassToPixels(pixelIds, className) {
+                if (pixelIds.length === 0) return;
+                
+                // Process in chunks to avoid blocking
+                const chunkSize = 1000; // Process 1000 pixels per frame
+                let index = 0;
+                
+                const processChunk = () => {
+                    const endIndex = Math.min(index + chunkSize, pixelIds.length);
+                    const elementsToUpdate = [];
+                    
+                    for (let i = index; i < endIndex; i++) {
+                        const pixel = pixelElementsCache.get(pixelIds[i]);
+                        if (pixel && !pixel.classList.contains(className)) {
+                            elementsToUpdate.push(pixel);
+                        }
+                    }
+                    
+                    // Batch class additions (all at once)
+                    if (elementsToUpdate.length > 0) {
+                        elementsToUpdate.forEach(pixel => {
+                            pixel.classList.add(className);
+                        });
+                    }
+                    
+                    index = endIndex;
+                    
+                    if (index < pixelIds.length) {
+                        // Continue processing next chunk
+                        requestAnimationFrame(processChunk);
+                    }
+                };
+                
+                requestAnimationFrame(processChunk);
             }
             
             // Mouse event handlers
@@ -532,9 +583,9 @@
                 const minCol = Math.min(start.col, end.col);
                 const maxCol = Math.max(start.col, end.col);
                 
-                // Get pixel elements
-                const startPixel = document.getElementById(`pixel-${selectionStart}`);
-                const endPixel = document.getElementById(`pixel-${selectionEnd}`);
+                // Get pixel elements from cache
+                const startPixel = getPixelElement(selectionStart);
+                const endPixel = getPixelElement(selectionEnd);
                 if (!startPixel || !endPixel) return;
                 
                 const gridRect = grid.getBoundingClientRect();
@@ -587,7 +638,7 @@
                 batchUpdate(() => {
                     filledPixels.forEach(id => {
                         const pixelId = parseInt(id);
-                        const pixel = document.getElementById(`pixel-${pixelId}`);
+                        const pixel = getPixelElement(pixelId);
                         if (pixel) {
                             pixel.classList.remove('owned', 'has-image');
                         }
@@ -687,25 +738,21 @@
                 lastFilledPixels = [];
                 
                 // Fill the entire area (batch DOM operation for performance)
-                batchUpdate(() => {
-                    for (let r = minRow; r <= maxRow; r++) {
-                        for (let c = minCol; c <= maxCol; c++) {
-                            const pixelId = r * gridWidth + c;
-                            if (!pixels[pixelId]) {
-                                pixels[pixelId] = true;
-                                lastFilledPixels.push(pixelId);
-                                
-                                const pixel = document.getElementById(`pixel-${pixelId}`);
-                                if (pixel) {
-                                    pixel.classList.add('owned');
-                                }
-                            }
+                const pixelsToFill = [];
+                for (let r = minRow; r <= maxRow; r++) {
+                    for (let c = minCol; c <= maxCol; c++) {
+                        const pixelId = r * gridWidth + c;
+                        if (!pixels[pixelId]) {
+                            pixels[pixelId] = true;
+                            lastFilledPixels.push(pixelId);
+                            pixelsToFill.push(pixelId);
                         }
                     }
-                    
-                    // Update count and button state after all pixels are filled
-                    updateSelectedCount();
-                });
+                }
+                
+                // Batch update all pixels at once using optimized function
+                batchAddClassToPixels(pixelsToFill, 'owned');
+                updateSelectedCount();
                 
                 // Mark that a block has been selected
                 hasSelectedBlock = true;
@@ -741,7 +788,7 @@
                 batchUpdate(() => {
                     filledPixels.forEach(id => {
                         const pixelId = parseInt(id);
-                        const pixel = document.getElementById(`pixel-${pixelId}`);
+                        const pixel = getPixelElement(pixelId);
                         if (pixel) {
                             pixel.classList.remove('owned', 'has-image');
                         }
@@ -796,7 +843,7 @@
                 if (pixels[id]) return; // Already filled
 
                 pixels[id] = true;
-                const pixel = document.getElementById(`pixel-${id}`);
+                const pixel = getPixelElement(id);
                 if (pixel) {
                     pixel.classList.add('owned');
                 }
@@ -810,7 +857,7 @@
                 pixels[id] = false;
                 delete pixels[id];
                 
-                const pixel = document.getElementById(`pixel-${id}`);
+                const pixel = getPixelElement(id);
                 if (pixel) {
                     pixel.classList.remove('owned', 'has-image');
                 }
@@ -874,8 +921,8 @@
                         const minCol = Math.min(...cols);
                         const maxCol = Math.max(...cols);
                         
-                        // Get actual pixel elements to calculate size
-                        const firstPixel = document.getElementById(`pixel-${selectedPixels[0]}`);
+                        // Get actual pixel elements to calculate size (use cache)
+                        const firstPixel = getPixelElement(selectedPixels[0]);
                         if (!firstPixel) {
                             alert('Error: Could not find pixels');
                             return;
@@ -952,7 +999,7 @@
                 let maxBottom = -Infinity;
                 
                 selectedPixels.forEach(pixelId => {
-                    const pixel = document.getElementById(`pixel-${pixelId}`);
+                    const pixel = getPixelElement(pixelId);
                     if (pixel) {
                         const rect = pixel.getBoundingClientRect();
                         const gridRect = grid.getBoundingClientRect();
@@ -1007,18 +1054,16 @@
                 // Add overlay to grid
                 grid.appendChild(overlay);
                 
-                // Rebuild cache
-                rebuildPixelImageCache();
-                
-                // Mark pixels as having image (to hide cube styling)
-                batchUpdate(() => {
-                    selectedPixels.forEach(pixelId => {
-                        const pixel = document.getElementById(`pixel-${pixelId}`);
-                        if (pixel) {
-                            pixel.classList.add('has-image');
-                        }
-                    });
+                // Mark pixels as having image immediately (synchronous for visual consistency)
+                selectedPixels.forEach(pixelId => {
+                    const pixel = getPixelElement(pixelId);
+                    if (pixel) {
+                        pixel.classList.add('has-image');
+                    }
                 });
+                
+                // Rebuild cache after adding class
+                rebuildPixelImageCache();
                 
                 console.log('✓ Image applied to DOM:', {
                     overlayId: overlayId,
@@ -1249,94 +1294,199 @@
                         return;
                     }
                     
-                    // Batch restore pixels for performance
-                    batchUpdate(() => {
-                        requestsList.forEach((request) => {
-                            // Restore pixels for this request
-                            if (request.pixels) {
-                                Object.keys(request.pixels).forEach(pixelId => {
-                                    const id = parseInt(pixelId);
-                                    if (request.pixels[pixelId] === true) {
-                                        pixels[id] = true;
-                                        loadedPixels.add(id); // Track that this pixel was loaded from backend
-                                        
-                                        const pixel = document.getElementById(`pixel-${id}`);
-                                        if (pixel) {
-                                            pixel.classList.add('owned');
-                                        }
-                                    }
-                                });
-                            }
-                        });
-                    });
+                    // OPTIMIZATION: Collect all pixel IDs first, then batch update
+                    const pixelsToUpdate = new Set();
+                    const imageRequests = [];
                     
-                    // Process images after a short delay to ensure DOM is ready
-                    requestsList.forEach((request, index) => {
-                        // Restore image for this request if it exists
+                    // First pass: collect all pixel data
+                    requestsList.forEach((request) => {
+                        // Collect pixels for this request
+                        if (request.pixels) {
+                            Object.keys(request.pixels).forEach(pixelId => {
+                                const id = parseInt(pixelId);
+                                if (request.pixels[pixelId] === true) {
+                                    pixels[id] = true;
+                                    loadedPixels.add(id);
+                                    pixelsToUpdate.add(id);
+                                }
+                            });
+                        }
+                        
+                        // Collect image requests
                         if (request.imageData && request.imagePosition && request.imagePosition.pixels) {
                             const selectedPixels = request.imagePosition.pixels.map(id => parseInt(id));
-                            const imageDataURL = request.imageData;
-                            
-                            console.log('Processing request:', {
-                                id: request.id,
-                                pixels: selectedPixels.length,
-                                hasImage: !!imageDataURL,
-                                status: request.status
-                            });
-                            
-                            // Mark all image pixels as loaded (protected)
+                            // Mark all image pixels as loaded
                             selectedPixels.forEach(pixelId => {
                                 loadedPixels.add(pixelId);
-                                fillPixel(pixelId); // Ensure pixel is filled
+                                pixelsToUpdate.add(pixelId);
                             });
                             
-                            // Wait for DOM to be ready, then apply image
-                            setTimeout(() => {
-                                if (selectedPixels.length > 0) {
-                                    const firstPixel = document.getElementById(`pixel-${selectedPixels[0]}`);
-                                    if (firstPixel) {
-                                        const pixelRect = firstPixel.getBoundingClientRect();
-                                        const actualPixelSize = pixelRect.width;
-                                        
-                                        const rows = selectedPixels.map(id => Math.floor(id / gridWidth));
-                                        const cols = selectedPixels.map(id => id % gridWidth);
-                                        const width = Math.max(...cols) - Math.min(...cols) + 1;
-                                        const height = Math.max(...rows) - Math.min(...rows) + 1;
-                                        
-                                        const overlayWidthPx = width * actualPixelSize;
-                                        const overlayHeightPx = height * actualPixelSize;
-                                        
-                                        // Use request ID as overlay ID for loaded images
-                                        const overlayId = 'loadedImage-' + request.id;
-                                        
-                                        console.log('Applying image overlay for request', request.id, ':', {
-                                            overlayId: overlayId,
-                                            pixels: selectedPixels.length,
-                                            size: overlayWidthPx + 'x' + overlayHeightPx,
-                                            hasLink: !!request.link,
-                                            hasText: !!request.text
-                                        });
-                                        
-                                        // Apply image using DOM overlay with link and text data
-                                        applyImageToPixels(selectedPixels, imageDataURL, overlayWidthPx, overlayHeightPx, overlayId, request.link || null, request.text || null);
-                                    }
-                                }
-                            }, 300 + (index * 50)); // Stagger loading for better performance
+                            imageRequests.push({
+                                request: request,
+                                selectedPixels: selectedPixels,
+                                imageDataURL: request.imageData
+                            });
                         }
                     });
                     
-                    updateSelectedCount();
-                    rebuildPixelImageCache();
+                    // OPTIMIZATION: Use global cache directly - no need to query DOM again
+                    const pixelsToUpdateArray = Array.from(pixelsToUpdate);
                     
-                    console.log('✓ Project loaded successfully:', {
-                        totalRequests: requestsList.length,
-                        totalLoadedPixels: loadedPixels.size,
-                        requestsWithImages: requestsList.filter(r => r.imageData && r.imagePosition).length
-                    });
+                    // OPTIMIZATION: Batch update all pixels using optimized function
+                    batchAddClassToPixels(pixelsToUpdateArray, 'owned');
+                    
+                    // OPTIMIZATION: Load images in batches using requestAnimationFrame
+                    // Calculate pixel size once (assume all pixels are same size) - use cache
+                    const firstPixel = getPixelElement(0);
+                    const actualPixelSize = firstPixel ? firstPixel.getBoundingClientRect().width : 10;
+                    const gridRect = grid.getBoundingClientRect();
+                    
+                    // Process images in batches to avoid blocking
+                    let imageIndex = 0;
+                    const processImageBatch = () => {
+                        const batchSize = 5; // Process 5 images per frame
+                        const endIndex = Math.min(imageIndex + batchSize, imageRequests.length);
+                        
+                        for (let i = imageIndex; i < endIndex; i++) {
+                            const { request, selectedPixels, imageDataURL } = imageRequests[i];
+                            
+                            if (selectedPixels.length > 0) {
+                                // Calculate bounding box efficiently
+                                const rows = selectedPixels.map(id => Math.floor(id / gridWidth));
+                                const cols = selectedPixels.map(id => id % gridWidth);
+                                const minRow = Math.min(...rows);
+                                const maxRow = Math.max(...rows);
+                                const minCol = Math.min(...cols);
+                                const maxCol = Math.max(...cols);
+                                
+                                const width = maxCol - minCol + 1;
+                                const height = maxRow - minRow + 1;
+                                
+                                const overlayWidthPx = width * actualPixelSize;
+                                const overlayHeightPx = height * actualPixelSize;
+                                
+                                // Calculate position using first pixel (use global cache)
+                                const firstPixelId = selectedPixels[0];
+                                const firstPixelEl = getPixelElement(firstPixelId);
+                                if (firstPixelEl) {
+                                    const pixelRect = firstPixelEl.getBoundingClientRect();
+                                    const minLeft = pixelRect.left - gridRect.left + grid.scrollLeft;
+                                    const minTop = pixelRect.top - gridRect.top + grid.scrollTop;
+                                    
+                                    const overlayId = 'loadedImage-' + request.id;
+                                    
+                                    // Apply image using optimized function
+                                    applyImageToPixelsOptimized(
+                                        selectedPixels, 
+                                        imageDataURL, 
+                                        overlayWidthPx, 
+                                        overlayHeightPx, 
+                                        minLeft,
+                                        minTop,
+                                        overlayId, 
+                                        request.link || null, 
+                                        request.text || null,
+                                        pixelElementsCache
+                                    );
+                                }
+                            }
+                        }
+                        
+                        imageIndex = endIndex;
+                        
+                        if (imageIndex < imageRequests.length) {
+                            // Continue processing next batch
+                            requestAnimationFrame(processImageBatch);
+                        } else {
+                            // All images processed
+                            rebuildPixelImageCache();
+                            updateSelectedCount();
+                            console.log('✓ Project loaded successfully:', {
+                                totalRequests: requestsList.length,
+                                totalLoadedPixels: loadedPixels.size,
+                                requestsWithImages: imageRequests.length
+                            });
+                        }
+                    };
+                    
+                    // Start processing images
+                    if (imageRequests.length > 0) {
+                        requestAnimationFrame(processImageBatch);
+                    } else {
+                        rebuildPixelImageCache();
+                        updateSelectedCount();
+                        console.log('✓ Project loaded successfully:', {
+                            totalRequests: requestsList.length,
+                            totalLoadedPixels: loadedPixels.size,
+                            requestsWithImages: 0
+                        });
+                    }
                 } catch (error) {
                     console.error('Error loading project:', error);
                     // Silently fail if backend is not available
                 }
+            }
+            
+            // Optimized version of applyImageToPixels that skips expensive getBoundingClientRect calls
+            function applyImageToPixelsOptimized(selectedPixels, imageDataURL, overlayWidthPx, overlayHeightPx, minLeft, minTop, overlayId, link, text, pixelElementsCache = null) {
+                // Check if overlay with this ID already exists
+                const existingOverlay = document.getElementById(overlayId);
+                if (existingOverlay) {
+                    existingOverlay.remove();
+                }
+                
+                if (selectedPixels.length === 0) return;
+                
+                // Create overlay div with unique ID
+                const overlay = document.createElement('div');
+                overlay.id = overlayId;
+                overlay.className = 'image-overlay';
+                overlay.dataset.pixels = selectedPixels.join(',');
+                overlay.dataset.link = link || '';
+                overlay.dataset.text = text || '';
+                overlay.style.backgroundImage = `url("${imageDataURL}")`;
+                overlay.style.backgroundSize = `${overlayWidthPx}px ${overlayHeightPx}px`;
+                overlay.style.backgroundPosition = '0 0';
+                overlay.style.backgroundRepeat = 'no-repeat';
+                overlay.style.left = minLeft + 'px';
+                overlay.style.top = minTop + 'px';
+                overlay.style.width = overlayWidthPx + 'px';
+                overlay.style.height = overlayHeightPx + 'px';
+                
+                // Make clickable if has link and not in edit mode
+                updateOverlayClickability(overlay);
+                
+                // Add click event to open link in new window
+                overlay.addEventListener('click', handleOverlayClick);
+                
+                // Add hover events for tooltip
+                overlay.addEventListener('mouseenter', handleOverlayHover);
+                overlay.addEventListener('mouseleave', handleOverlayLeave);
+                
+                // Store image data
+                pixelImages[overlayId] = {
+                    pixels: selectedPixels,
+                    overlay: overlay,
+                    link: link,
+                    text: text,
+                    temp: false
+                };
+                
+                // Add overlay to grid
+                grid.appendChild(overlay);
+                
+                // Mark pixels as having image immediately (synchronous for visual consistency)
+                // Use requestAnimationFrame but process immediately
+                requestAnimationFrame(() => {
+                    selectedPixels.forEach(pixelId => {
+                        const pixel = pixelElementsCache ? pixelElementsCache.get(pixelId) : getPixelElement(pixelId);
+                        if (pixel) {
+                            pixel.classList.add('has-image');
+                        }
+                    });
+                    // Rebuild cache after adding class
+                    rebuildPixelImageCache();
+                });
             }
             
             // Initialize everything
@@ -1347,6 +1497,32 @@
                 loadProjectFromBackend();
             }, 300);
         }); // End DOMContentLoaded
+
+        // Check admin authentication and show/hide admin button
+        async function checkAdminAuth() {
+            try {
+                const response = await fetch('/api/auth/me', {
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                
+                const adminButton = document.getElementById('adminBtn');
+                if (adminButton) {
+                    if (result.success && result.user && result.user.role === 'admin') {
+                        adminButton.style.display = 'inline-block';
+                    } else {
+                        adminButton.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Auth check error:', error);
+                // Hide admin button on error
+                const adminButton = document.getElementById('adminBtn');
+                if (adminButton) {
+                    adminButton.style.display = 'none';
+                }
+            }
+        }
     </script>
 </body>
 </html>
