@@ -452,20 +452,47 @@
 
         // Check authentication on load
         async function checkAuth() {
+            // Check localStorage for token first
+            const token = localStorage.getItem('authToken');
+            const storedUser = localStorage.getItem('user');
+            
             try {
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                // Add token to headers if available
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
                 const response = await fetch('/api/auth/me', {
-                    credentials: 'include'
+                    credentials: 'include',
+                    headers: headers
                 });
                 const result = await response.json();
                 
                 if (result.success && result.user) {
                     if (result.user.role === 'admin') {
                         currentUser = result.user;
+                        
+                        // Update localStorage with fresh user data
+                        if (token) {
+                            localStorage.setItem('authToken', token);
+                            localStorage.setItem('user', JSON.stringify(result.user));
+                        }
+                        
                         showAdminPanel();
                     } else {
                         showError('Access denied. Admin role required.');
+                        // Clear invalid token
+                        localStorage.removeItem('authToken');
+                        localStorage.removeItem('user');
                     }
                 } else {
+                    // No valid session, clear localStorage
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('user');
                     showLoginForm();
                 }
             } catch (error) {
@@ -516,6 +543,13 @@
                 if (result.success) {
                     if (result.user.role === 'admin') {
                         currentUser = result.user;
+                        
+                        // Save token to localStorage
+                        if (result.token) {
+                            localStorage.setItem('authToken', result.token);
+                            localStorage.setItem('user', JSON.stringify(result.user));
+                        }
+                        
                         showAdminPanel();
                         document.getElementById('loginError').style.display = 'none';
                     } else {
@@ -532,14 +566,33 @@
         // Sign out
         document.getElementById('signOutBtn').addEventListener('click', async () => {
             try {
+                const token = localStorage.getItem('authToken');
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
                 await fetch('/api/auth/logout', {
                     method: 'POST',
-                    credentials: 'include'
+                    credentials: 'include',
+                    headers: headers
                 });
+                
+                // Clear localStorage
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('user');
                 currentUser = null;
                 showLoginForm();
             } catch (error) {
                 console.error('Logout error:', error);
+                // Clear localStorage even if request fails
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('user');
+                currentUser = null;
+                showLoginForm();
             }
         });
 
@@ -551,8 +604,18 @@
         // Load requests
         async function loadRequests() {
             try {
+                const token = localStorage.getItem('authToken');
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
                 const response = await fetch('/api/admin/requests', {
-                    credentials: 'include'
+                    credentials: 'include',
+                    headers: headers
                 });
 
                 const result = await response.json();
@@ -683,11 +746,18 @@
             }
 
             try {
+                const token = localStorage.getItem('authToken');
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
                 const response = await fetch(`/api/admin/change-status/${currentRequestId}`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: headers,
                     credentials: 'include',
                     body: JSON.stringify({ status: newStatus })
                 });

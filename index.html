@@ -1678,8 +1678,19 @@
         // Check admin authentication and show/hide admin button
         async function checkAdminAuth() {
             try {
+                // Check localStorage for token first
+                const token = localStorage.getItem('authToken');
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
                 const response = await fetch('/api/auth/me', {
-                    credentials: 'include'
+                    credentials: 'include',
+                    headers: headers
                 });
                 const result = await response.json();
                 
@@ -1687,8 +1698,18 @@
                 if (adminButton) {
                     if (result.success && result.user && result.user.role === 'admin') {
                         adminButton.style.display = 'inline-block';
+                        
+                        // Update localStorage with fresh user data if token exists
+                        if (token && result.user) {
+                            localStorage.setItem('user', JSON.stringify(result.user));
+                        }
                     } else {
                         adminButton.style.display = 'none';
+                        // Clear invalid token
+                        if (token) {
+                            localStorage.removeItem('authToken');
+                            localStorage.removeItem('user');
+                        }
                     }
                 }
             } catch (error) {
@@ -1698,6 +1719,9 @@
                 if (adminButton) {
                     adminButton.style.display = 'none';
                 }
+                // Clear token on error
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('user');
             }
         }
     </script>

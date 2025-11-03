@@ -107,9 +107,18 @@ router.post('/login', async (req, res) => {
     req.session.username = user.username;
     req.session.role = user.role;
 
+    // Generate token (simple token based on user ID and timestamp)
+    const crypto = require('crypto');
+    const tokenData = `${user._id}:${user.role}:${Date.now()}`;
+    const token = crypto.createHash('sha256').update(tokenData + (process.env.SESSION_SECRET || 'your-secret-key-change-this-in-production')).digest('hex');
+
+    // Store token in session for verification
+    req.session.token = token;
+
     res.json({
       success: true,
       message: 'Login successful',
+      token: token,
       user: {
         id: user._id,
         username: user.username,
@@ -126,8 +135,20 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Logout
+// Logout (supports both session and token)
 router.post('/logout', (req, res) => {
+  // Check for token in Authorization header
+  const authHeader = req.headers.authorization;
+  let token = null;
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+    // Clear token from session if it matches
+    if (req.session && req.session.token && token === req.session.token) {
+      req.session.token = null;
+    }
+  }
+  
   req.session.destroy((err) => {
     if (err) {
       return res.status(500).json({ 
@@ -143,18 +164,41 @@ router.post('/logout', (req, res) => {
   });
 });
 
-// Get current user
+// Get current user (supports both session and token auth)
 router.get('/me', (req, res) => {
-  if (req.session && req.session.userId) {
-    return res.json({
-      success: true,
-      user: {
-        id: req.session.userId,
-        username: req.session.username,
-        role: req.session.role
-      }
-    });
+  // Check for token in Authorization header
+  const authHeader = req.headers.authorization;
+  let token = null;
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
   }
+  
+  // Check session-based auth
+  if (req.session && req.session.userId) {
+    // If token is provided, verify it matches session token
+    if (token && req.session.token && token === req.session.token) {
+      return res.json({
+        success: true,
+        user: {
+          id: req.session.userId,
+          username: req.session.username,
+          role: req.session.role
+        }
+      });
+    } else if (!token) {
+      // No token provided, use session
+      return res.json({
+        success: true,
+        user: {
+          id: req.session.userId,
+          username: req.session.username,
+          role: req.session.role
+        }
+      });
+    }
+  }
+  
   res.json({ 
     success: false, 
     user: null 
