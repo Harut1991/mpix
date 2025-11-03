@@ -61,11 +61,23 @@ async function initializeDatabase() {
     )
   `);
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS tokens (
+      token TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      role TEXT NOT NULL,
+      expiresAt TEXT NOT NULL,
+      createdAt TEXT NOT NULL
+    )
+  `);
+
   // Create indexes
   db.run(`CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_requests_createdAt ON requests(createdAt)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_tokens_userId ON tokens(userId)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_tokens_expiresAt ON tokens(expiresAt)`);
 
   // Save database to file
   saveDatabase();

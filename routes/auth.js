@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const UserModel = require('../models/User');
+const TokenModel = require('../models/Token');
 
 // Register new user
 router.post('/register', async (req, res) => {
@@ -114,6 +115,9 @@ router.post('/login', async (req, res) => {
 
     // Store token in session for verification
     req.session.token = token;
+    
+    // Store token in database for independent verification
+    TokenModel.createToken(token, user._id, user.role);
 
     res.json({
       success: true,
@@ -143,10 +147,19 @@ router.post('/logout', (req, res) => {
   
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.substring(7);
+    // Delete token from database
+    if (token) {
+      TokenModel.deleteToken(token);
+    }
     // Clear token from session if it matches
     if (req.session && req.session.token && token === req.session.token) {
       req.session.token = null;
     }
+  }
+  
+  // Also delete tokens from session if userId exists
+  if (req.session && req.session.userId) {
+    TokenModel.deleteUserTokens(req.session.userId);
   }
   
   req.session.destroy((err) => {
@@ -166,28 +179,46 @@ router.post('/logout', (req, res) => {
 
 // Get current user (supports both session and token auth)
 router.get('/me', (req, res) => {
-  // Check for token in Authorization header
-  const authHeader = req.headers.authorization;
+  // Check for token in Authorization header (case-insensitive)
+  const authHeader = req.headers.authorization || req.headers.Authorization;
   let token = null;
   
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  if (authHeader && (authHeader.startsWith('Bearer ') || authHeader.startsWith('bearer '))) {
     token = authHeader.substring(7);
-  }
-  
-  // Check session-based auth
-  if (req.session && req.session.userId) {
-    // If token is provided, verify it matches session token
-    if (token && req.session.token && token === req.session.token) {
-      return res.json({
-        success: true,
-        user: {
-          id: req.session.userId,
-          username: req.session.username,
-          role: req.session.role
+    
+    try {
+      // Verify token from database (independent of session)
+      const tokenData = TokenModel.findToken(token);
+      if (tokenData) {
+        // Get user info from database
+        const user = UserModel.findUser({ id: tokenData.userId });
+        
+        if (user) {
+          // Restore session if needed
+          if (!req.session || !req.session.userId) {
+            req.session.userId = user._id;
+            req.session.username = user.username;
+            req.session.role = user.role;
+            req.session.token = token;
+          }
+          
+          return res.json({
+            success: true,
+            user: {
+              id: user._id,
+              username: user.username,
+              role: user.role
+            }
+          });
         }
-      });
-    } else if (!token) {
-      // No token provided, use session
+      }
+    } catch (error) {
+      console.error('Error verifying token in /me:', error);
+      // Continue to session check below
+    }
+    
+    // Fallback: Check if token matches session token (for backward compatibility)
+    if (req.session && req.session.token && token === req.session.token && req.session.userId) {
       return res.json({
         success: true,
         user: {
@@ -197,6 +228,18 @@ router.get('/me', (req, res) => {
         }
       });
     }
+  }
+  
+  // Check session-based auth
+  if (req.session && req.session.userId) {
+    return res.json({
+      success: true,
+      user: {
+        id: req.session.userId,
+        username: req.session.username,
+        role: req.session.role
+      }
+    });
   }
   
   res.json({ 

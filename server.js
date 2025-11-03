@@ -20,6 +20,22 @@ let serverReady = false;
 dbPromise.then(() => {
   serverReady = true;
   console.log('Database initialized, server ready');
+  
+  // Verify tokens table exists
+  try {
+    const { getDatabase } = require('./config/database');
+    const db = getDatabase();
+    const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tokens'");
+    stmt.bind([]);
+    if (stmt.step()) {
+      console.log('✓ Tokens table exists');
+    } else {
+      console.log('⚠ Tokens table not found, will be created on next request');
+    }
+    stmt.free();
+  } catch (error) {
+    console.error('Error checking tokens table:', error);
+  }
 }).catch(err => {
   console.error('Database initialization error:', err);
   process.exit(1);
